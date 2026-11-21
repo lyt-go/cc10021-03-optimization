@@ -6,6 +6,7 @@ from app.services.dq_rule_def import DqRuleDefService
 from app.services.dq_check_run import DqCheckRunService
 from app.services.dq_incident import DqIncidentService
 from app.services.metadata_crawler import MetadataCrawlerService
+from app.services.ingest_receipt import IngestReceiptService
 from app.services.table_catalog import TableCatalogService
 from app.services.column_profile import ColumnProfileService
 from app.services.lineage_graph import LineageGraphService
@@ -26,6 +27,7 @@ SERVICES: dict[str, BaseModuleService] = {
     "dq_check_run": DqCheckRunService(),
     "dq_incident": DqIncidentService(),
     "metadata_crawler": MetadataCrawlerService(),
+    "ingest_receipt": IngestReceiptService(),
     "table_catalog": TableCatalogService(),
     "column_profile": ColumnProfileService(),
     "lineage_graph": LineageGraphService(),

@@ -4,6 +4,7 @@
 """
 from __future__ import annotations
 
+import threading
 from typing import Any
 
 from app.seed import SEED_ROWS
@@ -14,6 +15,8 @@ class Store:
         self._tables: dict[str, list[dict[str, Any]]] = {
             name: [dict(row) for row in rows] for name, rows in SEED_ROWS.items()
         }
+        # 接入/登记链路的跨请求串行锁：同库同表并发导入只确认一次
+        self.ingest_lock = threading.RLock()
 
     def module_names(self) -> list[str]:
         return sorted(self._tables)
@@ -26,6 +29,17 @@ class Store:
             if int(row.get("id", 0)) == entry_id:
                 return row
         return None
+
+    def next_id(self, module: str) -> int:
+        """一次性取号，避免逐条登记都全表扫描 max(id)。"""
+        return max((int(row.get("id", 0)) for row in self.rows(module)), default=0) + 1
+
+    def index_by(self, module: str, key_fields: tuple[str, ...]) -> dict[tuple, dict[str, Any]]:
+        """按业务键一次性建立目录索引，把批次内的重复查找压成 O(1) 查表。"""
+        index: dict[tuple, dict[str, Any]] = {}
+        for row in self.rows(module):
+            index[tuple(row.get(field) for field in key_fields)] = row
+        return index
 
     def overview(self) -> dict[str, object]:
         modules: list[dict[str, object]] = []

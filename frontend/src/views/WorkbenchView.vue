@@ -6,7 +6,7 @@
         <p class="page-desc">{{ meta.desc }}</p>
       </div>
       <div class="page-actions">
-        <button class="btn primary" data-testid="open-create" type="button" @click="openCreate">
+        <button v-if="creatable" class="btn primary" data-testid="open-create" type="button" @click="openCreate">
           登记{{ meta.entity }}
         </button>
         <button class="btn" data-testid="export" type="button" @click="exportRows">
@@ -42,14 +42,14 @@
         <tr>
           <th v-for="column in meta.fields" :key="column">{{ column }}</th>
           <th>当前状态</th>
-          <th>可执行动作</th>
+          <th v-if="meta.actions.length">可执行动作</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="row in rows" :key="String(row.id)" :data-testid="`row-${row.id}`" :data-status="String(row.status)">
           <td v-for="column in meta.fields" :key="column">{{ row[column] ?? '—' }}</td>
           <td>{{ row.status }}</td>
-          <td class="row-actions">
+          <td v-if="meta.actions.length" class="row-actions">
             <button
               v-for="action in meta.actions"
               :key="action"
@@ -63,7 +63,7 @@
           </td>
         </tr>
         <tr v-if="!rows.length">
-          <td :colspan="meta.fields.length + 2" class="empty-state">
+          <td :colspan="meta.fields.length + 1 + (meta.actions.length ? 1 : 0)" class="empty-state">
             暂无{{ meta.name }}数据，可先登记{{ meta.entity }}
           </td>
         </tr>
@@ -107,6 +107,8 @@ import type { EntryRow } from '@/data/types'
 
 const props = defineProps<{ moduleKey: string }>()
 const meta = moduleMeta(props.moduleKey)
+// 接入回执由采集批次入库自动生成，页面只提供查询/导出，不开放手工登记
+const creatable = meta.key !== 'ingest_receipt'
 const rows = ref<EntryRow[]>([])
 const total = ref(0)
 const errorMessage = ref('')
@@ -117,10 +119,16 @@ const creating = ref(false)
 const createValues = ref<Record<string, string>>({})
 const stats = computed(() => [
   { label: meta.metrics[0], value: total.value },
-  { label: meta.metrics[1], value: rows.value.filter((row) => row.status === meta.statuses[1]).length },
+  {
+    label: meta.metrics[1],
+    // 待处理口径：优先按 pending 标记统计，兼容没有该标记的历史模块
+    value: rows.value.filter((row) =>
+      row.pending === true || String(row.status) === meta.statuses[1]).length,
+  },
   {
     label: meta.metrics[2],
-    value: rows.value.filter((row) => row.status === meta.statuses[meta.statuses.length - 1]).length,
+    // 终态口径：取模块状态序列的最后一个状态
+    value: rows.value.filter((row) => String(row.status) === meta.statuses[meta.statuses.length - 1]).length,
   },
 ])
 const statusSummary = computed(() =>

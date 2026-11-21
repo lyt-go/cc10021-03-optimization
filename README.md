@@ -16,6 +16,7 @@
 │   └── vite.config.ts        dev server 配置（open: false）
 ├── backend/                  FastAPI（Python） 后端
 │   ├── app/routers/resource.py  通用查询/导出/登记/动作接口
+│   ├── app/routers/ingest.py    采集接入专用接口（采集/入库/回执/补录/画像）
 │   ├── app/services/<key>.py    每个模块独立领域逻辑
 │   ├── app/services/base.py     共享服务骨架
 │   └── app/store.py          内存数据仓库与示例数据
@@ -54,6 +55,7 @@ npm run dev
 | 巡检任务管理 | `dq_check_run` | 巡检任务 | 任务编号、关联规则集、数据范围 |
 | 质量事件管理 | `dq_incident` | 质量事件 | 事件编号、关联规则、触发时间 |
 | 元数据采集器 | `metadata_crawler` | 采集器配置 | 采集器编号、数据源类型、连接地址 |
+| 采集接入回执 | `ingest_receipt` | 接入回执 | 回执编号、接入批号、已接收数、待补正数、画像轮次 |
 | 数据表目录 | `table_catalog` | 表目录 | 表编号、表名称、所属库名 |
 | 字段画像分析 | `column_profile` | 字段画像 | 画像编号、关联表名、字段名称 |
 | 血缘图谱 | `lineage_graph` | 血缘关系 | 关系编号、上游表名、下游表名 |
@@ -76,6 +78,17 @@ npm run dev
   `frontend/src/domain/<模块>.ts`，用于承载真实业务差异并维持36题位容量。
 - 列表接口统一返回 `{ items, total, page, size }`，动作接口统一返回 `{ ok, message }`。
 - 状态流转只允许在 `app/services` 里改，路由层不做业务判断。
+
+### 采集接入批次链路（`/api/ingest`）
+
+1. `POST /api/ingest/crawl` 采集 schema，`POST /api/ingest/batch` 批次入库并返回接入回执。
+   整批只建一次（库名, 表名）目录索引、统一取号，不再逐表重扫目录；同库同表幂等，
+   重放批号或并发导入只确认一次，重复登记返回原回执、不产生重复目录行和画像任务。
+2. 回执（`ingest_receipt`）逐表记录「已接收 / 待补正」：缺主键的表不丢弃，可经
+   `POST /api/ingest/supplement` 补录主键后二次入库，历史目录数据缺字段登记按空登记兼容。
+3. 确认登记的表用回执字段建立目录字段登记，画像任务幂等回写 `column_profile` 待处理清单；
+   `POST /api/ingest/profiles/start|confirm` 发起并确认画像。补录表以新轮次进入清单，
+   回执分项记录轮次，可解释同名表分别在哪一轮进入计算。
 
 领域：数据工程
 子方向：数仓与数据湖
